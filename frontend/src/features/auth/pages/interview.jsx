@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import '../../interview/style/interview.scss';
-
+import { useNavigate,useParams }     from 'react-router-dom';
+import { generateResumePdf } from '../../interview/services/interview.api';
 // Dummy data from your exact provided JSON
 const dummyData = {
   "_id": {
@@ -131,14 +132,50 @@ const dummyData = {
 
 const InterviewReport = () => {
     const location = useLocation();
+    const navigate = useNavigate();
     // Use the fetched data passed from Home component via state, fallback to dummyData
     const data = location.state?.reportData || dummyData;
     const [activeTab, setActiveTab] = useState("Technical questions");
+    const { interviewId } = useParams();
+    const [isDownloading, setIsDownloading] = useState(false);
+
+    const handleDownloadResume = async () => {
+        if (!data || !data._id) {
+            alert("Report not found.");
+            return;
+        }
+        try {
+            setIsDownloading(true);
+            const reportId = interviewId || data._id; // Fallback to dummy data ID if interviewId from params is not present (for test mode)
+            const idToUse = typeof reportId === 'object' && reportId.$oid ? reportId.$oid : reportId;
+            
+            const blob = await generateResumePdf({ interviewId: idToUse });
+            const url = window.URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+            const link = document.createElement("a");
+            link.href = url;
+            link.setAttribute("download", `${data.title || "ai_generated_resume"}.pdf`);
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode.removeChild(link);
+            window.URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error("Failed to download resume:", error);
+            alert("Failed to download resume.");
+        } finally {
+            setIsDownloading(false);
+        }
+    };
 
     return (
         <div className="interview-layout">
             {/* Left Sidebar - Navigation */}
             <aside className="left-sidebar">
+                <button 
+                    className="back-to-home-btn" 
+                    onClick={() => navigate('/')}
+                >
+                    <span className="btn-icon">←</span> Back to Home
+                </button>
                 <div className="sidebar-section-title">SECTIONS</div>
                 <nav className="nav-menu">
                     <button 
@@ -158,6 +195,13 @@ const InterviewReport = () => {
                         onClick={() => setActiveTab('Road Map')}
                     >
                         <span className="btn-icon">🚀</span> Road Map
+                    </button>
+                    <button 
+                        className="download-btn"
+                        onClick={handleDownloadResume}
+                        disabled={isDownloading}
+                    >
+                        {isDownloading ? "Downloading..." : "Download Ai generated Resume"}
                     </button>
                 </nav>
             </aside>
